@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: postgresql
+    targetRevision: "*"
+    helm:
+      valuesObject:
+        fullnameOverride: postgresql
+        auth:
+          username: temporal
+          password: temporal
+          database: temporal
+        primary:
+          initdb:
+            scripts:
+              grant-createdb.sql: |
+                ALTER USER temporal CREATEDB;
+          persistence:
+            size: 1Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: temporal
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
