@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: temporal-namespace-setup
+  namespace: temporal
+spec:
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-namespace
+          image: temporalio/admin-tools:1.29.1-tctl-1.18.4-cli-1.5.0
+          command:
+            - sh
+            - -c
+            - |
+              until temporal operator cluster health 2>/dev/null; do
+                echo "Waiting for Temporal frontend..."
+                sleep 5
+              done
+              temporal operator namespace create default --retention 72h || true
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal-frontend.temporal.svc.cluster.local:7233"

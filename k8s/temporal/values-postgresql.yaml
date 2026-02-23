@@ -1,0 +1,59 @@
+server:
+  image:
+    repository: temporalio/server
+    tag: 1.29.1
+  config:
+    persistence:
+      defaultStore: default
+      default:
+        driver: "sql"
+        sql:
+          driver: "postgres12"
+          host: postgresql.temporal.svc.cluster.local
+          port: 5432
+          database: temporal
+          user: temporal
+          password: temporal
+          maxConns: 20
+          maxIdleConns: 20
+          maxConnLifetime: "1h"
+      visibility:
+        driver: "sql"
+        sql:
+          driver: "postgres12"
+          host: postgresql.temporal.svc.cluster.local
+          port: 5432
+          database: temporal_visibility
+          user: temporal
+          password: temporal
+          maxConns: 20
+          maxIdleConns: 20
+          maxConnLifetime: "1h"
+
+admintools:
+  enabled: true
+
+web:
+  enabled: true
+
+schema:
+  createDatabase:
+    enabled: true
+  setup:
+    enabled: true
+    backoffLimit: 100
+  update:
+    enabled: true
+    backoffLimit: 100
+
+cassandra:
+  enabled: false
+
+elasticsearch:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
