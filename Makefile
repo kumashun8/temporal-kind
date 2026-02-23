@@ -2,61 +2,73 @@ CLUSTER_NAME := temporal-kind
 NAMESPACE := temporal
 
 .PHONY: cluster-create cluster-delete \
-        deploy-postgres deploy-temporal deploy-namespace deploy-all \
-        generate-temporal-manifests \
-        port-forward-temporal port-forward-ui \
+        install-argocd deploy-apps deploy-namespace deploy-all \
+        port-forward-argocd port-forward-temporal port-forward-ui \
+        argocd-password \
         run-worker run-starter teardown
 
 # --- Cluster ---
 cluster-create:
 	kind create cluster --name $(CLUSTER_NAME) --config k8s/kind-config.yaml
-	kubectl apply -f k8s/namespace.yaml
 
 cluster-delete:
 	kind delete cluster --name $(CLUSTER_NAME)
 
-# --- PostgreSQL ---
-deploy-postgres:
-	kubectl apply -f k8s/postgres/
+# --- Argo CD ---
+install-argocd:
+	kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts
+	@echo "Waiting for Argo CD server to be ready..."
+	kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server \
+	  -n argocd --timeout=300s
 
-# --- Temporal Server (from generated manifests) ---
-deploy-temporal:
-	kubectl apply -R -f k8s/temporal/generated/ -n $(NAMESPACE)
+# --- Deploy Applications ---
+deploy-apps:
+	kubectl apply -f k8s/argocd/postgresql.yaml
+	@echo "Waiting for PostgreSQL Application to be Healthy..."
+	@while true; do \
+	  HEALTH=$$(kubectl get application postgresql -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null); \
+	  SYNC=$$(kubectl get application postgresql -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null); \
+	  if [ "$$HEALTH" = "Healthy" ] && [ "$$SYNC" = "Synced" ]; then break; fi; \
+	  echo "  PostgreSQL: health=$$HEALTH sync=$$SYNC"; \
+	  sleep 5; \
+	done
+	@echo "PostgreSQL Application is Healthy."
+	kubectl apply -f k8s/argocd/temporal.yaml
+	@echo "Waiting for Temporal Application to be Healthy..."
+	@while true; do \
+	  HEALTH=$$(kubectl get application temporal -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null); \
+	  SYNC=$$(kubectl get application temporal -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null); \
+	  if [ "$$HEALTH" = "Healthy" ] && [ "$$SYNC" = "Synced" ]; then break; fi; \
+	  echo "  Temporal: health=$$HEALTH sync=$$SYNC"; \
+	  sleep 10; \
+	done
+	@echo "Temporal Application is Healthy."
 
 # --- Temporal default namespace ---
 deploy-namespace:
 	kubectl apply -f k8s/temporal/namespace-setup-job.yaml
 
 # --- Full Deploy ---
-deploy-all: deploy-postgres
-	@echo "Waiting for PostgreSQL to be ready..."
-	kubectl wait --for=condition=ready pod -l app=postgresql \
-	  -n $(NAMESPACE) --timeout=120s
-	$(MAKE) deploy-temporal
-	@echo "Waiting for Temporal schema Job to complete..."
-	kubectl wait --for=condition=complete job/temporal-schema-1 \
-	  -n $(NAMESPACE) --timeout=180s
+deploy-all: install-argocd deploy-apps
 	@echo "Waiting for Temporal frontend to be ready..."
 	kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=frontend \
-	  -n $(NAMESPACE) --timeout=180s
+	  -n $(NAMESPACE) --timeout=300s
 	$(MAKE) deploy-namespace
 
-# --- Helm Template Generation ---
-generate-temporal-manifests:
-	helm repo add temporalio https://go.temporal.io/helm-charts || true
-	helm repo update
-	rm -rf k8s/temporal/generated/
-	helm template temporal temporalio/temporal \
-	  -f k8s/temporal/values-postgresql.yaml \
-	  --namespace $(NAMESPACE) \
-	  --output-dir k8s/temporal/generated/
-
 # --- Port Forward ---
+port-forward-argocd:
+	kubectl port-forward -n argocd svc/argocd-server 8443:443
+
 port-forward-temporal:
 	kubectl port-forward -n $(NAMESPACE) svc/temporal-frontend 7233:7233
 
 port-forward-ui:
 	kubectl port-forward -n $(NAMESPACE) svc/temporal-web 8080:8080
+
+# --- Argo CD Admin Password ---
+argocd-password:
+	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d && echo
 
 # --- Go Sample ---
 run-worker:
