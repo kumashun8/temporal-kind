@@ -4,6 +4,7 @@ NAMESPACE := temporal
 .PHONY: cluster-create cluster-delete \
         install-argocd deploy-apps deploy-namespace deploy-all \
         port-forward-argocd port-forward-temporal port-forward-ui \
+        port-forward-grafana port-forward-prometheus \
         argocd-password \
         run-worker run-starter teardown
 
@@ -65,6 +66,12 @@ port-forward-temporal:
 
 port-forward-ui:
 	kubectl port-forward -n $(NAMESPACE) svc/temporal-web 8080:8080
+
+port-forward-grafana:
+	kubectl port-forward -n $(NAMESPACE) svc/temporal-grafana 3000:80
+
+port-forward-prometheus:
+	kubectl port-forward -n $(NAMESPACE) svc/temporal-prometheus-server 9090:80
 
 # --- Argo CD Admin Password ---
 argocd-password:
