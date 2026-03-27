@@ -5,7 +5,7 @@ NAMESPACE := temporal
         install-argocd deploy-apps deploy-namespace deploy-all \
         port-forward-argocd port-forward-temporal port-forward-ui \
         port-forward-grafana port-forward-prometheus \
-        argocd-password \
+        argocd-password grafana-password \
         run-worker run-starter teardown
 
 # --- Cluster ---
@@ -73,9 +73,12 @@ port-forward-grafana:
 port-forward-prometheus:
 	kubectl port-forward -n $(NAMESPACE) svc/temporal-prometheus-server 9090:80
 
-# --- Argo CD Admin Password ---
+# --- Passwords ---
 argocd-password:
 	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d && echo
+
+grafana-password:
+	@kubectl -n $(NAMESPACE) get secret temporal-grafana -o jsonpath='{.data.admin-password}' | base64 -d && echo
 
 # --- Go Sample ---
 run-worker:
