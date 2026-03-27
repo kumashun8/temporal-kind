@@ -26,7 +26,6 @@ Temporal Server を kind (Kubernetes in Docker) クラスター上に Argo CD �
 │   │   ├── postgresql.yaml           # Argo CD Application: Bitnami PostgreSQL Helm
 │   │   └── temporal.yaml             # Argo CD Application: temporalio Helm
 │   └── temporal/
-│       ├── values-postgresql.yaml    # Helm values (参考用)
 │       └── namespace-setup-job.yaml  # Temporal default namespace 作成 Job
 └── temporal/                         # Go サンプルプログラム
     ├── workflow.go                   # Workflow + Activity 定義
